@@ -18,7 +18,7 @@ variable "broker_vm_size" {}
 variable "tags" {}
 
 variable "prefix" {
-  type = string
+  type    = string
   default = "kop"
 }
 
@@ -62,6 +62,12 @@ resource "azurerm_network_security_group" "nsg" {
   }
 }
 
+# Connect the security group to the subnet
+resource "azurerm_subnet_network_security_group_association" "association" {
+  subnet_id                 = azurerm_subnet.subnet.id
+  network_security_group_id = azurerm_network_security_group.nsg.id
+}
+
 resource "azurerm_public_ip" "ip" {
   count               = 3
   name                = "${var.prefix}IP-${count.index}"
@@ -78,20 +84,13 @@ resource "azurerm_network_interface" "nic" {
   location            = var.location
   resource_group_name = azurerm_resource_group.rg.name
   tags                = var.tags
- 
+
   ip_configuration {
     name                          = "${var.prefix}NicConfiguration-${count.index}"
     subnet_id                     = azurerm_subnet.subnet.id
     private_ip_address_allocation = "Dynamic"
     public_ip_address_id          = azurerm_public_ip.ip[count.index].id
   }
-}
-
-# Connect the security group to the network interface
-resource "azurerm_network_interface_security_group_association" "association" {
-  count                     = length(azurerm_network_interface.nic)
-  network_interface_id      = azurerm_network_interface.nic[count.index].id
-  network_security_group_id = azurerm_network_security_group.nsg.id
 }
 
 resource "random_id" "randomId" {
@@ -110,12 +109,12 @@ resource "azurerm_storage_account" "mystorageaccount" {
   location                 = var.location
   account_tier             = "Standard"
   account_replication_type = "LRS"
-  tags                      = var.tags
+  tags                     = var.tags
 }
 
 resource "tls_private_key" "ssh_key" {
   algorithm = "RSA"
-  rsa_bits = 4096
+  rsa_bits  = 4096
 }
 
 output "tls_private_key" { value = tls_private_key.ssh_key.private_key_pem }
@@ -123,7 +122,7 @@ output "tls_private_key" { value = tls_private_key.ssh_key.private_key_pem }
 resource "azurerm_linux_virtual_machine" "broker" {
   count                 = length(var.broker_instances)
   name                  = element(var.broker_instances, count.index)
-  resource_group_name   = azurerm_resource_group.rg.name 
+  resource_group_name   = azurerm_resource_group.rg.name
   location              = azurerm_resource_group.rg.location
   network_interface_ids = [azurerm_network_interface.nic[count.index].id]
   size                  = var.broker_vm_size
@@ -142,8 +141,8 @@ resource "azurerm_linux_virtual_machine" "broker" {
     version   = "latest"
   }
 
-  computer_name  = "${var.prefix}-broker-${count.index}"
-  admin_username = "azureuser"
+  computer_name                   = "${var.prefix}-broker-${count.index}"
+  admin_username                  = "azureuser"
   disable_password_authentication = true
 
   admin_ssh_key {
@@ -154,4 +153,47 @@ resource "azurerm_linux_virtual_machine" "broker" {
   boot_diagnostics {
     storage_account_uri = azurerm_storage_account.mystorageaccount.primary_blob_endpoint
   }
+}
+
+output "brokers" {
+  value = {
+    for vm in azurerm_linux_virtual_machine.broker :
+    vm.public_ip_address => vm.private_ip_address
+  }
+}
+
+resource "azurerm_managed_disk" "journaldisk" {
+  count                = length(azurerm_linux_virtual_machine.broker)
+  name                 = "${azurerm_linux_virtual_machine.broker[count.index].name}-journal"
+  resource_group_name  = azurerm_resource_group.rg.name
+  location             = azurerm_resource_group.rg.location
+  storage_account_type = "Premium_LRS"
+  create_option        = "Empty"
+  disk_size_gb         = 2500
+}
+
+resource "azurerm_virtual_machine_data_disk_attachment" "journaldiskattach" {
+  count              = length(azurerm_managed_disk.journaldisk)
+  managed_disk_id    = azurerm_managed_disk.journaldisk[count.index].id
+  virtual_machine_id = azurerm_linux_virtual_machine.broker[count.index].id
+  lun                = "0"
+  caching            = "ReadWrite"
+}
+
+resource "azurerm_managed_disk" "ledgerdisk" {
+  count                = length(azurerm_linux_virtual_machine.broker)
+  name                 = "${azurerm_linux_virtual_machine.broker[count.index].name}-ledger"
+  resource_group_name  = azurerm_resource_group.rg.name
+  location             = azurerm_resource_group.rg.location
+  storage_account_type = "Standard_LRS"
+  create_option        = "Empty"
+  disk_size_gb         = 2500
+}
+
+resource "azurerm_virtual_machine_data_disk_attachment" "ledgerdiskattach" {
+  count              = length(azurerm_managed_disk.ledgerdisk)
+  managed_disk_id    = azurerm_managed_disk.ledgerdisk[count.index].id
+  virtual_machine_id = azurerm_linux_virtual_machine.broker[count.index].id
+  lun                = "1"
+  caching            = "ReadWrite"
 }
