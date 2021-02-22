@@ -158,7 +158,7 @@ resource "azurerm_linux_virtual_machine" "broker" {
 output "brokers" {
   value = {
     for vm in azurerm_linux_virtual_machine.broker :
-    vm.public_ip_address => vm.private_ip_address
+    vm.public_ip_address => vm.admin_ssh_key
   }
 }
 
