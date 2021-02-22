@@ -1,31 +1,8 @@
-
-location = "eastus"
-
-# TODO: change to Azure instance type, currently this variable is unused.
-instance_types = {
-  "broker" = "i3en.2xlarge"
+resource_group_name   = "kop-test-rg"
+location              = "eastus"
+broker_instances      = ["vm-broker-1", "vm-broker-2", "vm-broker-3"]
+# 2 vCPU, 8 RAM (GiB), 4 Data disks, IOPS up to 3200, Temporary Storage 16 GiB
+broker_vm_size        = "Standard_D2s_v3"
+tags = {
+  environment = "kop-test"
 }
-
-num_instances = {
-  "broker" = 3
-}
-
-#instance_types = {
-#  "broker"              = "i3en.2xlarge"
-#  "zookeeper-pulsar"    = "t2.small"
-#  "zookeeper-kafka"     = "t2.small"
-#  "client-pulsar"       = "c5n.2xlarge"
-#  "client-kafka"        = "c5n.2xlarge"
-#  "prometheus-pulsar"   = "t2.large"
-#  "prometheus-kafka"    = "t2.large"
-#}
-#
-#num_instances = {
-#  "client-pulsar"       = 4
-#  "client-kafka"        = 4
-#  "broker"              = 3
-#  "zookeeper-pulsar"    = 3
-#  "zookeeper-kafka"     = 3
-#  "prometheus-pulsar"   = 1
-#  "prometheus-kafka"    = 1
-#}
