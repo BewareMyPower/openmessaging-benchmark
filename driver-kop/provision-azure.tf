@@ -13,8 +13,14 @@ provider "azurerm" {
 
 variable "resource_group_name" {}
 variable "location" {}
-variable "broker_instances" {}
 variable "broker_vm_size" {}
+variable "broker_instances" {}
+variable "zookeeper_vm_size" {}
+variable "zookeeper_instances" {}
+variable "client_vm_size" {}
+variable "client_instances" {}
+variable "prometheus_vm_size" {}
+variable "prometheus_instances" {}
 variable "tags" {}
 
 variable "prefix" {
@@ -69,7 +75,7 @@ resource "azurerm_subnet_network_security_group_association" "association" {
 }
 
 resource "azurerm_public_ip" "ip" {
-  count               = 3
+  count               = length(var.broker_instances) + length(var.zookeeper_instances) + length(var.prometheus_instances) + length(var.client_instances)
   name                = "${var.prefix}IP-${count.index}"
   location            = var.location
   resource_group_name = azurerm_resource_group.rg.name
@@ -129,7 +135,7 @@ resource "azurerm_linux_virtual_machine" "broker" {
   tags                  = var.tags
 
   os_disk {
-    name                 = "${var.prefix}OsDisk-${count.index}"
+    name                 = "${var.prefix}OsDiskBroker-${count.index}"
     caching              = "ReadWrite"
     storage_account_type = "Premium_LRS"
   }
@@ -196,4 +202,130 @@ resource "azurerm_virtual_machine_data_disk_attachment" "ledgerdiskattach" {
   virtual_machine_id = azurerm_linux_virtual_machine.broker[count.index].id
   lun                = "1"
   caching            = "ReadWrite"
+}
+
+
+resource "azurerm_linux_virtual_machine" "zookeepers" {
+  count                 = length(var.zookeeper_instances)
+  name                  = element(var.zookeeper_instances, count.index)
+  resource_group_name   = azurerm_resource_group.rg.name
+  location              = azurerm_resource_group.rg.location
+  network_interface_ids = [azurerm_network_interface.nic[count.index + length(var.broker_instances)].id]
+  size                  = var.zookeeper_vm_size
+  tags                  = var.tags
+
+  os_disk {
+    name                 = "${var.prefix}OsDiskZooKeeper-${count.index}"
+    caching              = "ReadWrite"
+    storage_account_type = "Premium_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "18.04-LTS"
+    version   = "latest"
+  }
+
+  computer_name                   = "${var.prefix}-zookeeper-${count.index}"
+  admin_username                  = "azureuser"
+  disable_password_authentication = true
+
+  admin_ssh_key {
+    username   = "azureuser"
+    public_key = tls_private_key.ssh_key.public_key_openssh
+  }
+
+  boot_diagnostics {
+    storage_account_uri = azurerm_storage_account.mystorageaccount.primary_blob_endpoint
+  }
+}
+
+output "zookeepers" {
+  value = {
+    for vm in azurerm_linux_virtual_machine.zookeepers :
+    vm.public_ip_address => vm.admin_ssh_key
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "clients" {
+  count                 = length(var.client_instances)
+  name                  = element(var.client_instances, count.index)
+  resource_group_name   = azurerm_resource_group.rg.name
+  location              = azurerm_resource_group.rg.location
+  network_interface_ids = [azurerm_network_interface.nic[count.index + length(var.broker_instances) + length(var.zookeeper_instances)].id]
+  size                  = var.client_vm_size
+  tags                  = var.tags
+
+  os_disk {
+    name                 = "${var.prefix}OsDiskClient-${count.index}"
+    caching              = "ReadWrite"
+    storage_account_type = "Premium_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "18.04-LTS"
+    version   = "latest"
+  }
+
+  computer_name                   = "${var.prefix}-client-${count.index}"
+  admin_username                  = "azureuser"
+  disable_password_authentication = true
+
+  admin_ssh_key {
+    username   = "azureuser"
+    public_key = tls_private_key.ssh_key.public_key_openssh
+  }
+
+  boot_diagnostics {
+    storage_account_uri = azurerm_storage_account.mystorageaccount.primary_blob_endpoint
+  }
+}
+
+output "clients" {
+  value = {
+    for vm in azurerm_linux_virtual_machine.clients :
+    vm.public_ip_address => vm.admin_ssh_key
+  }
+}
+
+resource "azurerm_linux_virtual_machine" "prometheus" {
+  name                  = var.prometheus_instances[0]
+  resource_group_name   = azurerm_resource_group.rg.name
+  location              = azurerm_resource_group.rg.location
+  network_interface_ids = [azurerm_network_interface.nic[length(var.broker_instances) + length(var.zookeeper_instances) + length(var.client_instances)].id]
+  size                  = var.prometheus_vm_size
+  tags                  = var.tags
+
+  os_disk {
+    name                 = "${var.prefix}OsDiskPrometheus"
+    caching              = "ReadWrite"
+    storage_account_type = "Premium_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "18.04-LTS"
+    version   = "latest"
+  }
+
+  computer_name                   = "${var.prefix}-prometheus"
+  admin_username                  = "azureuser"
+  disable_password_authentication = true
+
+  admin_ssh_key {
+    username   = "azureuser"
+    public_key = tls_private_key.ssh_key.public_key_openssh
+  }
+
+  boot_diagnostics {
+    storage_account_uri = azurerm_storage_account.mystorageaccount.primary_blob_endpoint
+  }
+}
+
+output "prometheus-ip" {
+  value = azurerm_linux_virtual_machine.prometheus.public_ip_address
 }
