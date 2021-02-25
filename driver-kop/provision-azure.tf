@@ -13,6 +13,7 @@ provider "azurerm" {
 
 variable "resource_group_name" {}
 variable "location" {}
+variable "admin_user" {}
 variable "broker_vm_size" {}
 variable "broker_instances" {}
 variable "zookeeper_vm_size" {}
@@ -125,6 +126,8 @@ resource "tls_private_key" "ssh_key" {
 
 output "tls_private_key" { value = tls_private_key.ssh_key.private_key_pem }
 
+output "tls_public_key" { value = tls_private_key.ssh_key.public_key_openssh }
+
 resource "azurerm_linux_virtual_machine" "broker" {
   count                 = length(var.broker_instances)
   name                  = element(var.broker_instances, count.index)
@@ -148,11 +151,11 @@ resource "azurerm_linux_virtual_machine" "broker" {
   }
 
   computer_name                   = "${var.prefix}-broker-${count.index}"
-  admin_username                  = "azureuser"
+  admin_username                  = var.admin_user
   disable_password_authentication = true
 
   admin_ssh_key {
-    username   = "azureuser"
+    username   = var.admin_user
     public_key = tls_private_key.ssh_key.public_key_openssh
   }
 
@@ -164,7 +167,7 @@ resource "azurerm_linux_virtual_machine" "broker" {
 output "brokers" {
   value = {
     for vm in azurerm_linux_virtual_machine.broker :
-    vm.public_ip_address => vm.admin_ssh_key
+    vm.public_ip_address => vm.private_ip_address
   }
 }
 
@@ -228,11 +231,11 @@ resource "azurerm_linux_virtual_machine" "zookeepers" {
   }
 
   computer_name                   = "${var.prefix}-zookeeper-${count.index}"
-  admin_username                  = "azureuser"
+  admin_username                  = var.admin_user
   disable_password_authentication = true
 
   admin_ssh_key {
-    username   = "azureuser"
+    username   = var.admin_user
     public_key = tls_private_key.ssh_key.public_key_openssh
   }
 
@@ -244,7 +247,7 @@ resource "azurerm_linux_virtual_machine" "zookeepers" {
 output "zookeepers" {
   value = {
     for vm in azurerm_linux_virtual_machine.zookeepers :
-    vm.public_ip_address => vm.admin_ssh_key
+    vm.public_ip_address => vm.private_ip_address
   }
 }
 
@@ -271,11 +274,11 @@ resource "azurerm_linux_virtual_machine" "clients" {
   }
 
   computer_name                   = "${var.prefix}-client-${count.index}"
-  admin_username                  = "azureuser"
+  admin_username                  = var.admin_user
   disable_password_authentication = true
 
   admin_ssh_key {
-    username   = "azureuser"
+    username   = var.admin_user
     public_key = tls_private_key.ssh_key.public_key_openssh
   }
 
@@ -287,7 +290,7 @@ resource "azurerm_linux_virtual_machine" "clients" {
 output "clients" {
   value = {
     for vm in azurerm_linux_virtual_machine.clients :
-    vm.public_ip_address => vm.admin_ssh_key
+    vm.public_ip_address => vm.private_ip_address
   }
 }
 
@@ -313,11 +316,11 @@ resource "azurerm_linux_virtual_machine" "prometheus" {
   }
 
   computer_name                   = "${var.prefix}-prometheus"
-  admin_username                  = "azureuser"
+  admin_username                  = var.admin_user
   disable_password_authentication = true
 
   admin_ssh_key {
-    username   = "azureuser"
+    username   = var.admin_user
     public_key = tls_private_key.ssh_key.public_key_openssh
   }
 

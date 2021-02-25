@@ -1,5 +1,6 @@
 resource_group_name = "kop-test-rg"
 location            = "eastus"
+admin_user          = "azureuser"
 
 # 8 vCPU, 32 RAM (GiB), 8 Data disks, IOPS up to 12800, Temporary Storage 64 GiB
 broker_vm_size   = "Standard_D8s_v3"
