@@ -45,3 +45,23 @@
       with_items:
         - { path: "/mnt/data-1", src: "/dev/sdc" }
         - { path: "/mnt/data-2", src: "/dev/sdd" }
+
+- name: Setup common packages
+  hosts: all
+  connection: ssh
+  become: true
+  tasks:
+    - name: Remove sysstat
+      apt: name={{ item }} state=absent
+      with_items:
+        - sysstat
+    - name: Install RPM packages
+      apt: name={{ item }} state=latest
+      with_items:
+        - wget
+        - openjdk-11-jre-headless
+        - sysstat
+        - vim
+        - chrony
+        - git
+        - gcc
