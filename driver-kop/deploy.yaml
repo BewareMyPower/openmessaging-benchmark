@@ -23,6 +23,7 @@
   become: true
   tasks:
     - set_fact:
+        zookeeperServers: "{{ groups['zookeeper'] | map('extract', hostvars, ['ansible_default_ipv4', 'address']) | map('regex_replace', '^(.*)$', '\\1:2181') | join(',') }}"
         serviceUrl: "pulsar://{{ hostvars[groups['broker'][0]].ansible_default_ipv4.address }}:6650/"
         httpUrl: "http://{{ hostvars[groups['broker'][0]].ansible_default_ipv4.address }}:8080/"
         pulsarDownloadUrl: "https://github.com/streamnative/pulsar/releases/download/v2.8.0-rc-202102252222/apache-pulsar-2.8.0-rc-202102252222-bin.tar.gz"
@@ -108,3 +109,20 @@
       args:
         chdir: /opt/pulsar
       when: groups['zookeeper'][0] == inventory_hostname
+
+- name: BookKeeper setup
+  hosts: broker
+  connection: ssh
+  become: true
+  tasks:
+    - template:
+        src: "pulsar/templates/bookkeeper.conf"
+        dest: "/opt/pulsar/conf/bookkeeper.conf"
+    - name: Install bookkeeper systemd service
+      template:
+        src: "pulsar/templates/bookkeeper.service"
+        dest: "/etc/systemd/system/bookkeeper.service"
+    - systemd:
+        state: restarted
+        daemon_reload: yes
+        name: "bookkeeper"
