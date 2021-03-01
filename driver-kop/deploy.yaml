@@ -23,9 +23,8 @@
   become: true
   tasks:
     - set_fact:
-        zookeeperServers: "{{ groups['zookeeper'] | map('regex_replace', '^(.*)$', '\\1:2181') | join(',') }}"
-        serviceUrl: "pulsar://{{ hostvars[groups['broker'][0]].private_ip }}:6650/"
-        httpUrl: "http://{{ hostvars[groups['broker'][0]].private_ip }}:8080/"
+        serviceUrl: "pulsar://{{ hostvars[groups['broker'][0]].ansible_default_ipv4.address }}:6650/"
+        httpUrl: "http://{{ hostvars[groups['broker'][0]].ansible_default_ipv4.address }}:8080/"
         pulsarDownloadUrl: "https://github.com/streamnative/pulsar/releases/download/v2.8.0-rc-202102252222/apache-pulsar-2.8.0-rc-202102252222-bin.tar.gz"
         kopDownloadUrl: "https://github.com/streamnative/kop/releases/download/v2.8.0-rc-202102261859/pulsar-protocol-handler-kafka-2.8.0-rc-202102261859.nar"
     - file: path=/opt/pulsar state=absent
@@ -36,6 +35,11 @@
         remote_src: yes
         dest: /opt/pulsar
         extra_opts: ["--strip-components=1"]
+    - name: Download extra metrics provider for ZooKeeper
+      get_url:
+        url: "https://repo.maven.apache.org/maven2/org/apache/zookeeper/zookeeper-prometheus-metrics/3.6.2/zookeeper-prometheus-metrics-3.6.2.jar"
+        dest: /opt/pulsar/lib
+      when: inventory_hostname in groups['zookeeper']
     - name: Create directory for protocol handlers
       file:
         path: /opt/pulsar/protocols
@@ -60,3 +64,47 @@
       shell: |
         echo 'LANG=en_US.utf-8
         LC_ALL=en_US.utf-8' >> /etc/environment
+
+- name: ZooKeeper setup
+  hosts: zookeeper
+  connection: ssh
+  become: true
+  tasks:
+    - set_fact:
+        zid: "{{ groups['zookeeper'].index(inventory_hostname) }}"
+        max_heap_memory: "512m"
+        max_direct_memory: "512m"
+        private_ip: "{{ hostvars[inventory_hostname].ansible_default_ipv4.address }}"
+    - file:
+        path: "/opt/pulsar/{{ item }}"
+        state: directory
+      with_items:
+        - data/zookeeper
+    - template:
+        src: "pulsar/templates/pulsar_env.sh"
+        dest: "/opt/pulsar/conf/pulsar_env.sh"
+    - template:
+        src: "pulsar/templates/bkenv.sh"
+        dest: "/opt/pulsar/conf/bkenv.sh"
+    - template:
+        src: "pulsar/templates/zoo.cfg"
+        dest: "/opt/pulsar/conf/zookeeper.conf"
+    - template:
+        src: "pulsar/templates/myid"
+        dest: "/opt/pulsar/data/zookeeper/myid"
+    - template:
+        src: "pulsar/templates/zookeeper.service"
+        dest: "/etc/systemd/system/zookeeper.service"
+    - systemd:
+        state: restarted
+        daemon_reload: yes
+        name: "zookeeper"
+    - command: >
+        bin/pulsar initialize-cluster-metadata --cluster local
+        --zookeeper localhost:2181
+        --configuration-store localhost:2181
+        --web-service-url {{ httpUrl }}
+        --broker-service-url {{ serviceUrl }}
+      args:
+        chdir: /opt/pulsar
+      when: groups['zookeeper'][0] == inventory_hostname
