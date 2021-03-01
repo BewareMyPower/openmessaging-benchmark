@@ -24,6 +24,7 @@
   tasks:
     - set_fact:
         zookeeperServers: "{{ groups['zookeeper'] | map('extract', hostvars, ['ansible_default_ipv4', 'address']) | map('regex_replace', '^(.*)$', '\\1:2181') | join(',') }}"
+        private_ip: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}"
         serviceUrl: "pulsar://{{ hostvars[groups['broker'][0]].ansible_default_ipv4.address }}:6650/"
         httpUrl: "http://{{ hostvars[groups['broker'][0]].ansible_default_ipv4.address }}:8080/"
         pulsarDownloadUrl: "https://github.com/streamnative/pulsar/releases/download/v2.8.0-rc-202102252222/apache-pulsar-2.8.0-rc-202102252222-bin.tar.gz"
@@ -126,3 +127,20 @@
         state: restarted
         daemon_reload: yes
         name: "bookkeeper"
+
+- name: Pulsar broker setup
+  hosts: broker
+  connection: ssh
+  become: true
+  tasks:
+    - name: Set up broker
+      template:
+        src: "pulsar/templates/broker.conf"
+        dest: "/opt/pulsar/conf/broker.conf"
+    - template:
+        src: "pulsar/templates/pulsar.service"
+        dest: "/etc/systemd/system/pulsar.service"
+    - systemd:
+        state: restarted
+        daemon_reload: yes
+        name: "pulsar"
