@@ -191,3 +191,34 @@
         state: restarted
         daemon_reload: yes
         name: "benchmark-worker"
+
+- name: Prometheus setup
+  hosts: prometheus
+  connection: ssh
+  become: true
+  tasks:
+    - name: Install docker
+      apt:
+        name: docker.io
+    - file:
+        path: "/opt/prometheus/{{ item }}"
+        state: directory
+      with_items:
+        - data
+    - template:
+        src: "pulsar/templates/prometheus.service"
+        dest: "/etc/systemd/system/prometheus.service"
+    - template:
+        src: "pulsar/templates/pulsar-dashboard.service"
+        dest: "/etc/systemd/system/pulsar-dashboard.service"
+    - template:
+        src: "pulsar/templates/prometheus.yml"
+        dest: "/opt/prometheus/prometheus.yml"
+    - systemd:
+        state: restarted
+        daemon_reload: yes
+        name: "prometheus"
+    - systemd:
+        state: restarted
+        daemon_reload: yes
+        name: "pulsar-dashboard"
