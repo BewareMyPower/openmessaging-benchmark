@@ -17,6 +17,29 @@
 # under the License.
 #
 
+- name: Format and mount disks for Pulsar/BookKeeper hosts
+  hosts: broker
+  connection: ssh
+  become: true
+  tasks:
+    - name: Format disks
+      filesystem:
+        fstype: xfs
+        dev: '{{ item }}'
+      with_items:
+        - '/dev/sdc'
+        - '/dev/sdd'
+    - name: Mount disks
+      mount:
+        path: "{{ item.path }}"
+        src: "{{ item.src }}"
+        fstype: xfs
+        opts: defaults,noatime,nodiscard
+        state: mounted
+      with_items:
+        - { path: "/mnt/data-1", src: "/dev/sdc" }
+        - { path: "/mnt/data-2", src: "/dev/sdd" }
+
 - name: Pulsar downloads
   hosts: all
   connection: ssh
