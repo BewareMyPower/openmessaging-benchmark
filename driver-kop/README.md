@@ -58,6 +58,25 @@ Then run `deploy.yaml` to deploy KoP's components and prometheus:
 $ ansible-playbook -i inventory.ini deploy.yaml
 ```
 
+## Running tests
+
+You can sshing into the client host:
+
+```bash
+$ ssh -i ~/.ssh/azure_ssh_key azureuser@$(terraform output client_ssh_host | sed "s/\"//g")
+```
+
+Then run any of the existing benchmarking workloads by specifying the YAML file for that workload. For example,
+
+```bash
+$ cd /opt/benchmark
+$ sudo bin/benchmark --drivers driver-pulsar/pulsar.yaml workloads/1-topic-16-partition-100b.yaml
+```
+
+Although benchmarks are run from a specific client host, the benchmarks are run in distributed mode, across multiple client hosts.
+
+You can also specify the hosts by `--workers` option, the argument is the comma separated hosts like `1.2.3.4:8080,5.6.7.8:8080`.
+
 ## Destroy the resources
 
 If you want to destroy these resources, run

@@ -346,3 +346,7 @@ resource "azurerm_linux_virtual_machine" "prometheus" {
 output "prometheus-ip" {
   value = azurerm_linux_virtual_machine.prometheus.public_ip_address
 }
+
+output "client_ssh_host" {
+  value = azurerm_linux_virtual_machine.clients.0.public_ip_address
+}
