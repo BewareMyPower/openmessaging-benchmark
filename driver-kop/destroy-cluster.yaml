@@ -16,6 +16,17 @@
 # specific language governing permissions and limitations
 # under the License.
 #
+- name: Benchmarking client teardown
+  hosts: client
+  connection: ssh
+  tasks:
+    - systemd:
+        state: stopped
+        daemon_reload: yes
+        name: benchmark-worker
+    - file:
+        path: /opt/benchmark
+        state: absent
 
 - name: Pulsar teardown
   hosts: broker
