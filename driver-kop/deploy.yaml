@@ -40,6 +40,14 @@
         - { path: "/mnt/data-1", src: "/dev/sdc" }
         - { path: "/mnt/data-2", src: "/dev/sdd" }
 
+- name: Set private IP
+  hosts: all
+  connection: ssh
+  become: true
+  tasks:
+    - set_fact:
+        private_ip: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}"
+
 - name: Pulsar downloads
   hosts: all
   connection: ssh
@@ -47,38 +55,18 @@
   tasks:
     - set_fact:
         zookeeperServers: "{{ groups['zookeeper'] | map('extract', hostvars, ['ansible_default_ipv4', 'address']) | map('regex_replace', '^(.*)$', '\\1:2181') | join(',') }}"
-        private_ip: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}"
-        serviceUrl: "pulsar://{{ hostvars[groups['broker'][0]].ansible_default_ipv4.address }}:6650/"
-        httpUrl: "http://{{ hostvars[groups['broker'][0]].ansible_default_ipv4.address }}:8080/"
-        pulsarDownloadUrl: "https://github.com/streamnative/pulsar/releases/download/v2.8.0-rc-202102252222/apache-pulsar-2.8.0-rc-202102252222-bin.tar.gz"
-        kopDownloadUrl: "https://github.com/streamnative/kop/releases/download/v2.8.0-rc-202102261859/pulsar-protocol-handler-kafka-2.8.0-rc-202102261859.nar"
+        serviceUrl: "pulsar://{{ hostvars[groups['broker'][0]].private_ip }}:6650/"
+        httpUrl: "http://{{ hostvars[groups['broker'][0]].private_ip }}:8080/"
+        max_heap_memory: 8g
+        max_direct_memory: 16g
     - file: path=/opt/pulsar state=absent
     - file: path=/opt/pulsar state=directory
     - name: Download Pulsar binary package
       unarchive:
-        src: "{{ pulsarDownloadUrl }}"
+        src: https://github.com/streamnative/pulsar/releases/download/v2.8.0-rc-202102252222/apache-pulsar-2.8.0-rc-202102252222-bin.tar.gz
         remote_src: yes
         dest: /opt/pulsar
         extra_opts: ["--strip-components=1"]
-    - name: Download extra metrics provider for ZooKeeper
-      get_url:
-        url: "https://repo.maven.apache.org/maven2/org/apache/zookeeper/zookeeper-prometheus-metrics/3.6.2/zookeeper-prometheus-metrics-3.6.2.jar"
-        dest: /opt/pulsar/lib
-      when: inventory_hostname in groups['zookeeper']
-    - name: Create directory for protocol handlers
-      file:
-        path: /opt/pulsar/protocols
-        state: directory
-      when: inventory_hostname in groups['broker']
-    - name: Download KoP package
-      get_url:
-        url: "{{ kopDownloadUrl }}"
-        dest: /opt/pulsar/protocols
-      when: inventory_hostname in groups['broker']
-    - set_fact:
-        private_ip: "{{ hostvars[inventory_hostname]['ansible_default_ipv4']['address'] }}"
-        max_heap_memory: "8g"
-        max_direct_memory: "16g"
     - template:
         src: "pulsar/templates/pulsar_env.sh"
         dest: "/opt/pulsar/conf/pulsar_env.sh"
@@ -89,6 +77,33 @@
       shell: |
         echo 'LANG=en_US.utf-8
         LC_ALL=en_US.utf-8' >> /etc/environment
+
+- name: ZooKeeper metrics setup
+  hosts: zookeeper
+  connection: ssh
+  become: true
+  tasks:
+    - name: Download extra metrics provider for ZooKeeper
+      get_url:
+        url: "https://repo.maven.apache.org/maven2/org/apache/zookeeper/zookeeper-prometheus-metrics/3.6.2/zookeeper-prometheus-metrics-3.6.2.jar"
+        dest: /opt/pulsar/lib
+      when: inventory_hostname in groups['zookeeper']
+
+- name: KoP downloads
+  hosts: broker
+  connection: ssh
+  become: true
+  tasks:
+    - name: Create directory for protocol handlers
+      file:
+        path: /opt/pulsar/protocols
+        state: directory
+      when: inventory_hostname in groups['broker']
+    - name: Download KoP package
+      get_url:
+        url: https://github.com/streamnative/kop/releases/download/v2.8.0-rc-202102261859/pulsar-protocol-handler-kafka-2.8.0-rc-202102261859.nar
+        dest: /opt/pulsar/protocols
+      when: inventory_hostname in groups['broker']
 
 - name: ZooKeeper setup
   hosts: zookeeper
@@ -168,25 +183,28 @@
         daemon_reload: yes
         name: "pulsar"
 
-- name: Pulsar benchmarking client setup
+- name: Benchmark worker setup
   hosts: client
   connection: ssh
   become: true
   tasks:
+    - set_fact:
+        bootstrapServers: "{{ groups['broker'] | map('extract', hostvars, ['private_ip']) | map('regex_replace', '^(.*)$', '\\1:9092') | join(',') }}"
     - name: Set up client config
       template:
         src: "pulsar/templates/client.conf"
         dest: "/opt/pulsar/conf/client.conf"
     - file: path=/opt/benchmark state=absent
+    - file: path=/opt/benchmark state=directory
     - name: Copy benchmark code
       unarchive:
         src: ../package/target/openmessaging-benchmark-0.0.1-SNAPSHOT-bin.tar.gz
-        dest: /opt
-    - shell: mv /opt/openmessaging-benchmark-0.0.1-SNAPSHOT /opt/benchmark
+        dest: /opt/benchmark
+        extra_opts: ["--strip-components=1"]
     - template:
         src: "pulsar/templates/workers.yaml"
         dest: "/opt/benchmark/workers.yaml"
-    - name: Get list of driver config files
+    - name: Get list of driver-pulsar config files
       raw: ls -1 /opt/benchmark/driver-pulsar/*.yaml
       register: drivers_list
     - name: Configure service URL
@@ -201,6 +219,15 @@
         regexp: '^  httpUrl: '
         line: '  httpUrl: {{ httpUrl }}'
       with_items: '{{ drivers_list.stdout_lines }}'
+    - name: Get list of driver-kafka config files
+      raw: ls -1 /opt/benchmark/driver-kafka/*.yaml
+      register: driver_kafka_list
+    - name: Configure Kafka bootstrap servers
+      lineinfile:
+        dest: "{{ item }}"
+        regexp: "^  bootstrap.servers="
+        line: "  bootstrap.servers={{ bootstrapServers }}"
+      with_items: "{{ driver_kafka_list.stdout_lines }}"
     - name: Configure memory
       lineinfile:
          dest: /opt/benchmark/bin/benchmark-worker

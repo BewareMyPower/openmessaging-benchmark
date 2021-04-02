@@ -41,7 +41,15 @@ In addition, we should save the `tls_private_key` to `~/.ssh/azure_ssh_key` so t
 
 ```bash
 $ terraform output tls_private_key | sed '1d;$d' > ~/.ssh/azure_ssh_key
-$ chmod 644 ~/.ssh/azure_ssh_key
+$ chmod 400 ~/.ssh/azure_ssh_key
+```
+
+To avoid `Are you sure you want to continue connecting` prompt during `ansible-playbook` process, it's better to connect once to all VMs first (always answer 'yes').
+
+For a given IP like `1.2.3.4`, the SSH command is
+
+```bash
+$ ssh -i ~/.ssh/azure_ssh_key azureuser@1.2.3.4
 ```
 
 ## Deploy KoP
