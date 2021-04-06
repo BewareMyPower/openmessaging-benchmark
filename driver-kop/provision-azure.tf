@@ -210,7 +210,7 @@ resource "azurerm_managed_disk" "ledgerdisk" {
   location             = azurerm_resource_group.rg.location
   storage_account_type = "Standard_LRS"
   create_option        = "Empty"
-  disk_size_gb         = 2500
+  disk_size_gb         = 2000
 }
 
 resource "azurerm_virtual_machine_data_disk_attachment" "ledgerdiskattach" {
