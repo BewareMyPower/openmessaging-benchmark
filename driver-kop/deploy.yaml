@@ -22,13 +22,22 @@
   connection: ssh
   become: true
   tasks:
+    # In terraform script, journal disk's lun number is 0, ledger disk's lun number is 1
+    - name: Register journal disk name
+      shell: echo "/dev/$(ls -l /dev/disk/azure/scsi1 | grep lun0 | egrep -o "([^\/]+$)")"
+      register: journal_disk_name
+    - name: Register ledger disk name
+      shell: echo "/dev/$(ls -l /dev/disk/azure/scsi1 | grep lun1 | egrep -o "([^\/]+$)")"
+      register: ledger_disk_name
+    - debug:
+        msg: "journal_disk_name is: {{ journal_disk_name.stdout }}, ledger_disk_name is: {{ ledger_disk_name.stdout }}"
     - name: Format disks
       filesystem:
         fstype: xfs
-        dev: '{{ item }}'
+        dev: "{{ item }}"
       with_items:
-        - '/dev/sdc'
-        - '/dev/sdd'
+        - "{{ journal_disk_name.stdout }}"
+        - "{{ ledger_disk_name.stdout }}"
     - name: Mount disks
       mount:
         path: "{{ item.path }}"
@@ -37,8 +46,8 @@
         opts: defaults,noatime,nodiscard
         state: mounted
       with_items:
-        - { path: "/mnt/data-1", src: "/dev/sdc" }
-        - { path: "/mnt/data-2", src: "/dev/sdd" }
+        - { path: "/mnt/data-1", src: "{{ journal_disk_name.stdout }}" }
+        - { path: "/mnt/data-2", src: "{{ ledger_disk_name.stdout }}" }
 
 - name: Set private IP
   hosts: all
