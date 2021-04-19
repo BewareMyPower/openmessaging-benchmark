@@ -22,10 +22,6 @@
   connection: ssh
   become: true
   tasks:
-    - name: Setup client config
-      template:
-        src: templates/client.conf
-        dest: /opt/pulsar/conf/client.conf
     - file: path=/opt/benchmark state=directory
     - name: Copy benchmark code
       unarchive:

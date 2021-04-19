@@ -18,7 +18,7 @@
 #
 
 - name: KoP downloads
-  hosts: all
+  hosts: zookeeper,broker
   connection: ssh
   become: true
   tasks:
