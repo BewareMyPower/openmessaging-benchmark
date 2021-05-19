@@ -105,48 +105,6 @@
 		</dependency>
 
 		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>driver-rocketmq</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>driver-rabbitmq</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>driver-artemis</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>driver-bookkeeper</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>driver-nats</artifactId>
-	    	<version>${project.version}</version>
-		</dependency>
-
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>driver-nats-streaming</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-
-		<dependency>
-			<groupId>${project.groupId}</groupId>
-			<artifactId>driver-nsq</artifactId>
-			<version>${project.version}</version>
-		</dependency>
-
-		<dependency>
 			<groupId>org.apache.bookkeeper.stats</groupId>
 			<artifactId>bookkeeper-stats-api</artifactId>
 			<version>${bookkeeper.version}</version>

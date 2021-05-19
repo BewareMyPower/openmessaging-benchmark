@@ -16,6 +16,7 @@
 # specific language governing permissions and limitations
 # under the License.
 #
+
 - name: Benchmarking client teardown
   hosts: client
   connection: ssh
