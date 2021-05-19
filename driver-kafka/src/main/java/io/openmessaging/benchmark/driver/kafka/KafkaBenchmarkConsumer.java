@@ -61,11 +61,6 @@ public class KafkaBenchmarkConsumer implements BenchmarkConsumer {
                         offsetMap.put(new TopicPartition(record.topic(), record.partition()),
                                 new OffsetAndMetadata(record.offset()));
                     }
-
-                    if (!records.isEmpty()) {
-                        // Async commit all messages polled so far
-                        consumer.commitAsync(offsetMap, null);
-                    }
                 } catch (Exception e) {
                     log.error("exception occur while consuming message", e);
                 }
